@@ -54,4 +54,165 @@
 
     <div id="form-view">
       <div class="field"><label>Photos / Fichiers</label></div>
-      <div
+      <div class="drop-zone" onclick="document.getElementById('file-input').click()" ondragover="event.preventDefault(); this.style.borderColor='#1a5c58'" ondragleave="this.style.borderColor='#ccc'" ondrop="handleDrop(event)">
+        <div class="icon">📎</div>
+        <p>Déposez vos fichiers ici</p>
+        <span>Parcourir</span>
+        <input id="file-input" type="file" multiple accept="image/*,.pdf" style="display:none" onchange="handleFiles(this.files)" />
+      </div>
+      <div id="file-list" class="file-list"></div>
+
+      <div class="field">
+        <label>Titre sommaire de la demande <span class="required">*</span></label>
+        <input id="f-title" type="text" placeholder="ex. Fuite d'eau près de la sortie B" />
+      </div>
+
+      <div class="field">
+        <label>Description du problème observé <span class="required">*</span></label>
+        <textarea id="f-desc" rows="4" placeholder="Décrivez le problème en détail..."></textarea>
+      </div>
+
+      <div class="field">
+        <label># Du local / Emplacement <span class="required">*</span></label>
+        <p class="sublabel" style="margin-bottom:6px;">*N/A si non applicable</p>
+        <input id="f-location" type="text" placeholder="ex. Local B-204 ou N/A" />
+      </div>
+
+      <div class="field">
+        <label>Date souhaitée du service rendu <span class="required">*</span></label>
+        <p class="sublabel" style="margin-bottom:6px;">La date d'exécution prévue vous sera communiquée prochainement</p>
+        <input id="f-date" type="date" />
+      </div>
+
+      <div class="field">
+        <label>Numéro de téléphone pour vous joindre <span style="font-size:11px; color:#aaa;">(Facultatif)</span></label>
+        <input id="f-phone" type="tel" placeholder="ex. 514-555-1234" />
+      </div>
+
+      <div class="check-box">
+        <div class="check-item" onclick="toggleCheck('urgent')">
+          <div id="check-urgent" class="checkmark"></div>
+          <div class="check-text">
+            <h4>Urgence?</h4>
+            <p>L'utilisation de la case "Urgent" signifie que l'équipe devra démobiliser quelqu'un de ses tâches actuelles et venir répondre à votre demande. Est-ce réellement le cas?</p>
+          </div>
+        </div>
+        <div class="check-item" onclick="toggleCheck('sse')">
+          <div id="check-sse" class="checkmark"></div>
+          <div class="check-text">
+            <h4>Demande SSE?</h4>
+            <p>Cocher cette case si votre demande est en lien avec la santé ou la sécurité d'un travailleur.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="status"></div>
+      <button type="submit" onclick="submitForm()">Soumettre</button>
+      <div class="footer">
+        <a href="https://www.delpharm.com/fr/politique-de-confidentialite/" style="color:#bbb;">Politique de confidentialité</a>
+      </div>
+    </div>
+
+    <div id="success-view" class="success-view">
+      <div class="success-icon">✓</div>
+      <h2>Demande envoyée!</h2>
+      <p>Votre demande a été transmise avec succès.<br>Vous serez contacté prochainement.</p>
+      <button class="btn-secondary" onclick="resetForm()">Nouvelle demande</button>
+    </div>
+  </div>
+
+  <script>
+    const WEBHOOK_URL = 'https://hook.us2.make.com/qb4v81qbkowgq4yf0j6wyinyuz67dde7';
+    let isUrgent = false, isSSE = false, uploadedFiles = [];
+
+    function toggleCheck(id) {
+      if (id === 'urgent') {
+        isUrgent = !isUrgent;
+        const el = document.getElementById('check-urgent');
+        el.textContent = isUrgent ? '✓' : '';
+        el.style.background = isUrgent ? '#fdecea' : 'white';
+        el.style.borderColor = isUrgent ? '#c0392b' : '#ccc';
+        el.style.color = '#c0392b';
+      } else {
+        isSSE = !isSSE;
+        const el = document.getElementById('check-sse');
+        el.textContent = isSSE ? '✓' : '';
+        el.style.background = isSSE ? '#fff3cd' : 'white';
+        el.style.borderColor = isSSE ? '#e67e22' : '#ccc';
+        el.style.color = '#e67e22';
+      }
+    }
+
+    function handleFiles(files) {
+      for (const f of files) {
+        uploadedFiles.push(f);
+        const tag = document.createElement('div');
+        tag.className = 'file-tag';
+        tag.textContent = '📄 ' + f.name;
+        document.getElementById('file-list').appendChild(tag);
+      }
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      document.querySelector('.drop-zone').style.borderColor = '#ccc';
+      handleFiles(e.dataTransfer.files);
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById('status');
+      el.style.display = 'block';
+      el.textContent = msg;
+      el.style.background = type === 'error' ? '#fdecea' : '#fff3cd';
+      el.style.color = type === 'error' ? '#c0392b' : '#856404';
+    }
+
+    async function submitForm() {
+      const title = document.getElementById('f-title').value.trim();
+      const desc = document.getElementById('f-desc').value.trim();
+      const location = document.getElementById('f-location').value.trim();
+      const date = document.getElementById('f-date').value;
+      const phone = document.getElementById('f-phone').value.trim();
+
+      if (!title) { showStatus('Le titre est requis.', 'error'); return; }
+      if (!desc) { showStatus('La description est requise.', 'error'); return; }
+      if (!location) { showStatus("L'emplacement est requis.", 'error'); return; }
+      if (!date) { showStatus('La date souhaitée est requise.', 'error'); return; }
+
+      const btn = document.querySelector('button[type=submit]');
+      btn.disabled = true;
+      btn.textContent = 'Envoi en cours...';
+
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description: desc, location, date_souhaitee: date, telephone: phone || 'Non fourni', urgent: isUrgent ? 'Oui' : 'Non', sse: isSSE ? 'Oui' : 'Non', fichiers: uploadedFiles.map(f => f.name).join(', ') || 'Aucun' })
+        });
+        if (response.ok) {
+          document.getElementById('form-view').style.display = 'none';
+          document.getElementById('success-view').style.display = 'block';
+        } else {
+          showStatus("Erreur lors de l'envoi. Réessayez.", 'error');
+          btn.disabled = false; btn.textContent = 'Soumettre';
+        }
+      } catch(e) {
+        showStatus('Connexion échouée. Vérifiez votre réseau.', 'error');
+        btn.disabled = false; btn.textContent = 'Soumettre';
+      }
+    }
+
+    function resetForm() {
+      ['f-title','f-desc','f-location','f-date','f-phone'].forEach(id => document.getElementById(id).value = '');
+      isUrgent = false; isSSE = false; uploadedFiles = [];
+      ['urgent','sse'].forEach(id => { const el = document.getElementById('check-'+id); el.textContent=''; el.style.background='white'; el.style.borderColor='#ccc'; });
+      document.getElementById('file-list').innerHTML = '';
+      document.getElementById('status').style.display = 'none';
+      const btn = document.querySelector('button[type=submit]');
+      btn.disabled = false; btn.textContent = 'Soumettre';
+      document.getElementById('form-view').style.display = 'block';
+      document.getElementById('success-view').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
